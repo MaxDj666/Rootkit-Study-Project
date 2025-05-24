@@ -119,6 +119,25 @@ private fun startTcpServer() {
                                     }
                                     output.flush()
                                 }
+                                "RENAME" -> {
+                                    val oldPath = input.readLine()
+                                    val newPath = input.readLine()
+                                    val file = File(oldPath)
+                                    try {
+                                        if (file.exists()) {
+                                            if (file.renameTo(File(newPath))) {
+                                                output.write("RENAME_SUCCESS\n")
+                                            } else {
+                                                output.write("RENAME_FAILED\n")
+                                            }
+                                        } else {
+                                            output.write("RENAME_NOT_FOUND\n")
+                                        }
+                                    } catch (e: SecurityException) {
+                                        output.write("RENAME_DENIED\n")
+                                    }
+                                    output.flush()
+                                }
                                 else -> {
                                     output.write("UNKNOWN_COMMAND\n")
                                     output.flush()

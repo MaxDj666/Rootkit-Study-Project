@@ -39,6 +39,7 @@ class ClientApp : Application() {
     private lateinit var disconnectButton: Button
     private lateinit var currentPathLabel: Label
     private lateinit var deleteButton: Button
+    private lateinit var renameButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -152,6 +153,11 @@ class ClientApp : Application() {
             setOnAction { deleteSelectedFile() }
         }
 
+        renameButton = Button("Переименовать").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
+            setOnAction { renameSelected() }
+        }
+
         currentPathLabel = Label(currentPath).apply {
             style = "-fx-font-size: 14px; -fx-text-fill: #333;"
         }
@@ -168,7 +174,8 @@ class ClientApp : Application() {
                 refreshButton,
                 pathBox,
                 Separator(),
-                deleteButton
+                deleteButton,
+                renameButton
             )
         }
 
@@ -275,7 +282,7 @@ class ClientApp : Application() {
             return
         }
 
-        if (selected.endsWith("/")) {
+        if (selected.endsWith("\\")) {
             log("Нельзя удалить директорию!")
             return
         }
@@ -308,6 +315,49 @@ class ClientApp : Application() {
                 }
             } catch (e: Exception) {
                 log("Ошибка при удалении файла: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun renameSelected() {
+        val selected = fileSystemList.selectionModel.selectedItem ?: run {
+            log("Файл или директория не выбраны!")
+            return
+        }
+
+        val name = selected.substringBefore(" [")
+        val dialog = TextInputDialog(name).apply {
+            title = "Переименование"
+            headerText = "Введите новое имя:"
+            contentText = "Текущее имя: $name"
+        }
+
+        val newName = dialog.showAndWait().orElse(null) ?: return
+
+        val oldPath = "$currentPath$name"
+        val newPath = "$currentPath$newName"
+
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("RENAME\n")
+                    write("$oldPath\n")
+                    write("$newPath\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when (response) {
+                    "RENAME_SUCCESS" -> {
+                        log("Переименование успешно: $name -> $newName")
+                        Platform.runLater { refreshFileSystemView() } // Обновляем список
+                    }
+                    "RENAME_FAILED" -> log("Ошибка переименования")
+                    "RENAME_NOT_FOUND" -> log("Файл или директория не существует")
+                    "RENAME_DENIED" -> log("Нет прав на переименование")
+                }
+            } catch (e: Exception) {
+                log("Ошибка при переименовании: ${e.message}")
             }
         }.start()
     }
