@@ -1,4 +1,5 @@
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
 import java.net.*
 import kotlin.concurrent.thread
@@ -137,6 +138,35 @@ private fun startTcpServer() {
                                         output.write("RENAME_DENIED\n")
                                     }
                                     output.flush()
+                                }
+                                "GET_FILE" -> {
+                                    val filePath = input.readLine()
+                                    val file = File(filePath)
+                                    try {
+                                        if (file.exists() && file.isFile()) {
+                                            // Получаем бинарный OutputStream сокета
+                                            val dataOutput = socket.getOutputStream()
+
+                                            // Отправляем заголовок через Writer
+                                            output.write("FILE_START:${file.length()}\n")
+                                            output.flush() // Важно: сбрасываем буфер!
+
+                                            // Передаем файл ТОЛЬКО через бинарный поток
+                                            FileInputStream(file).use { fis ->
+                                                fis.copyTo(dataOutput) // Автоматически копирует все байты
+                                            }
+
+                                            // Отправляем окончание через Writer
+                                            output.write("FILE_END\n")
+                                            output.flush()
+                                        } else {
+                                            output.write("FILE_NOT_FOUND\n")
+                                            output.flush()
+                                        }
+                                    } catch (e: SecurityException) {
+                                        output.write("FILE_ACCESS_DENIED\n")
+                                        output.flush()
+                                    }
                                 }
                                 else -> {
                                     output.write("UNKNOWN_COMMAND\n")

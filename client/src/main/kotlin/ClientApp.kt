@@ -11,7 +11,10 @@ import javafx.scene.layout.BorderPane
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
+import javafx.stage.FileChooser
 import javafx.stage.Stage
+import java.io.FileOutputStream
+import java.io.IOException
 import java.net.*
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -40,6 +43,7 @@ class ClientApp : Application() {
     private lateinit var currentPathLabel: Label
     private lateinit var deleteButton: Button
     private lateinit var renameButton: Button
+    private lateinit var copyButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -61,7 +65,7 @@ class ClientApp : Application() {
     private fun createDiscoveryTab(): Tab {
         // Настройка таблицы
         serversTable = TableView<ServerInfo>().apply {
-            columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY
+            columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN
             prefHeight = 300.0
 
             columns.addAll(
@@ -158,6 +162,11 @@ class ClientApp : Application() {
             setOnAction { renameSelected() }
         }
 
+        copyButton = Button("Копировать с...").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
+            setOnAction { copyFileFromServer() }
+        }
+
         currentPathLabel = Label(currentPath).apply {
             style = "-fx-font-size: 14px; -fx-text-fill: #333;"
         }
@@ -175,7 +184,8 @@ class ClientApp : Application() {
                 pathBox,
                 Separator(),
                 deleteButton,
-                renameButton
+                renameButton,
+                copyButton,
             )
         }
 
@@ -358,6 +368,76 @@ class ClientApp : Application() {
                 }
             } catch (e: Exception) {
                 log("Ошибка при переименовании: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun copyFileFromServer() {
+        val selected = fileSystemList.selectionModel.selectedItem ?: run {
+            log("Файл не выбран!")
+            return
+        }
+
+        if (selected.endsWith("\\")) {
+            log("Нельзя копировать директорию!")
+            return
+        }
+
+        val fileName = selected.substringBefore(" [")
+        val serverPath = "$currentPath$fileName".replace("/", "\\")
+
+        // Диалог выбора места сохранения
+        val fileChooser = FileChooser().apply {
+            title = "Выберите место для сохранения файла"
+            initialFileName = fileName
+            extensionFilters.add(FileChooser.ExtensionFilter("Все файлы", "*.*"))
+        }
+
+        val saveFile = fileChooser.showSaveDialog(null) ?: return
+
+        Thread {
+            try {
+                // Запрос на получение файла
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("GET_FILE\n")
+                    write("$serverPath\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+
+                when {
+                    response.startsWith("FILE_START:") -> {
+                        val fileSize = response.substringAfter(":").toLong()
+                        log("Начато копирование файла ($fileSize байт)...")
+
+                        FileOutputStream(saveFile).use { fos ->
+                            val dataInput = currentConnection!!.getInputStream()
+
+                            // Читаем ТОЧНОЕ количество байт
+                            var remaining = fileSize
+                            val buffer = ByteArray(8192)
+
+                            while (remaining > 0) {
+                                val read = dataInput.read(buffer, 0, minOf(buffer.size, remaining.toInt()))
+                                if (read == -1) throw IOException("Unexpected end of stream")
+                                fos.write(buffer, 0, read)
+                                remaining -= read
+                            }
+                        }
+
+                        // Теперь читаем FILE_END из BufferedReader
+                        val endResponse = currentConnection!!.getInputStream().bufferedReader().readLine()
+                        if (endResponse == "FILE_END") {
+                            log("Файл успешно скопирован: ${saveFile.absolutePath}")
+                        }
+                    }
+                    response == "FILE_NOT_FOUND" -> log("Файл не найден на сервере")
+                    response == "FILE_ACCESS_DENIED" -> log("Нет прав доступа к файлу")
+                    else -> log("Неизвестный ответ сервера: $response")
+                }
+            } catch (e: Exception) {
+                log("Ошибка при копировании файла: ${e.message}")
             }
         }.start()
     }
