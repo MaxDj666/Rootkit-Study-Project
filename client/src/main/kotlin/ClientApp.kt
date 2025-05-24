@@ -13,6 +13,7 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.stage.FileChooser
 import javafx.stage.Stage
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.*
@@ -39,11 +40,13 @@ class ClientApp : Application() {
     private lateinit var logArea: TextArea
     private lateinit var serversTable: TableView<ServerInfo>
     private lateinit var fileSystemList: ListView<String>
-    private lateinit var disconnectButton: Button
     private lateinit var currentPathLabel: Label
+
+    private lateinit var disconnectButton: Button
     private lateinit var deleteButton: Button
     private lateinit var renameButton: Button
     private lateinit var copyButton: Button
+    private lateinit var uploadButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -167,6 +170,11 @@ class ClientApp : Application() {
             setOnAction { copyFileFromServer() }
         }
 
+        uploadButton = Button("Копировать на...").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
+            setOnAction { uploadFileToServer() }
+        }
+
         currentPathLabel = Label(currentPath).apply {
             style = "-fx-font-size: 14px; -fx-text-fill: #333;"
         }
@@ -186,6 +194,7 @@ class ClientApp : Application() {
                 deleteButton,
                 renameButton,
                 copyButton,
+                uploadButton,
             )
         }
 
@@ -442,6 +451,68 @@ class ClientApp : Application() {
         }.start()
     }
 
+    private fun uploadFileToServer() {
+        val fileChooser = FileChooser().apply {
+            title = "Выберите файл для загрузки"
+            extensionFilters.addAll(
+                FileChooser.ExtensionFilter("Все файлы", "*.*")
+            )
+        }
+
+        val selectedFile = fileChooser.showOpenDialog(null) ?: return
+        val fileName = selectedFile.name
+        val serverPath = convertToServerPath("$currentPath$fileName")
+
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("PUT_FILE\n")
+                    write("$serverPath\n")
+                    flush()
+                }
+
+                when (val response = currentConnection!!.getInputStream().bufferedReader().readLine()) {
+                    "READY_FOR_DATA" -> {
+                        log("Начата загрузка файла: ${selectedFile.name}")
+                        val fileSize = selectedFile.length()
+                        // Отправляем размер файла
+                        currentConnection!!.getOutputStream().bufferedWriter().apply {
+                            write("$fileSize\n")
+                            flush()
+                        }
+
+                        FileInputStream(selectedFile).use { fis ->
+                            val buffer = ByteArray(8192)
+                            var bytesRead: Int
+                            while (fis.read(buffer).also { bytesRead = it } != -1) {
+                                currentConnection!!.getOutputStream().write(buffer, 0, bytesRead)
+                            }
+                        }
+                        currentConnection!!.getOutputStream().flush()
+
+                        val endResponse = currentConnection!!.getInputStream().bufferedReader().readLine()
+                        when {
+                            endResponse.startsWith("FILE_RECEIVED:") -> {
+                                val size = endResponse.substringAfter(":").toLong()
+                                log("Файл успешно загружен ($size байт)")
+                                Platform.runLater { refreshFileSystemView() }
+                            }
+                            endResponse.startsWith("ERROR:") -> {
+                                log("Ошибка на сервере: ${endResponse.substringAfter("ERROR:")}")
+                            }
+                            else -> log("Неизвестный ответ сервера: $endResponse")
+                        }
+                    }
+                    "PATH_INVALID" -> log("Недопустимый путь на сервере")
+                    "ACCESS_DENIED" -> log("Нет прав на запись")
+                    else -> log("Неизвестный ответ сервера: $response")
+                }
+            } catch (e: Exception) {
+                log("Ошибка при загрузке файла: ${e.message}")
+            }
+        }.start()
+    }
+
     private fun refreshFileSystemView() {
         if (currentConnection?.isClosed != false) {
             log("Нет активного подключения!")
@@ -589,6 +660,13 @@ class ClientApp : Application() {
                 }
             }
         }.start()
+    }
+
+    private fun convertToServerPath(windowsPath: String): String {
+        val normalized = windowsPath
+            .replace("/", "\\")
+            .let { if (it.length > 260) "\\\\?\\$it" else it }
+        return normalized
     }
 
     private fun log(message: String) {

@@ -1,5 +1,6 @@
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.IOException
 import java.net.*
 import kotlin.concurrent.thread
@@ -167,6 +168,42 @@ private fun startTcpServer() {
                                         output.write("FILE_ACCESS_DENIED\n")
                                         output.flush()
                                     }
+                                }
+                                "PUT_FILE" -> {
+                                    val savePath = input.readLine()
+                                    val file = File(savePath)
+                                    try {
+                                        if (file.parentFile?.exists() == true || file.parentFile?.mkdirs() == true) {
+                                            output.write("READY_FOR_DATA\n")
+                                            output.flush()
+
+                                            // Читаем размер файла
+                                            val sizeLine = input.readLine()
+                                            val fileSize = sizeLine.toLong()
+
+                                            FileOutputStream(file).use { fos ->
+                                                val dataInput = socket.getInputStream()
+                                                var remaining = fileSize
+                                                val buffer = ByteArray(8192)
+                                                while (remaining > 0) {
+                                                    val read = dataInput.read(buffer, 0, minOf(buffer.size, remaining.toInt()))
+                                                    if (read == -1) throw IOException("Unexpected end of stream")
+                                                    fos.write(buffer, 0, read)
+                                                    remaining -= read
+                                                }
+                                            }
+                                            output.write("FILE_RECEIVED:${file.length()}\n")
+                                        } else {
+                                            output.write("PATH_INVALID\n")
+                                        }
+                                    } catch (e: SecurityException) {
+                                        output.write("ACCESS_DENIED\n")
+                                    } catch (e: NumberFormatException) {
+                                        output.write("ERROR:Invalid file size\n")
+                                    } catch (e: IOException) {
+                                        output.write("ERROR:Failed to receive file: ${e.message}\n")
+                                    }
+                                    output.flush()
                                 }
                                 else -> {
                                     output.write("UNKNOWN_COMMAND\n")

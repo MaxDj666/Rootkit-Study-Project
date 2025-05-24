@@ -16,8 +16,9 @@ dependencies {
 application {
     mainClass.set("ClientAppKt")
     applicationDefaultJvmArgs = listOf(
-        "-Dglass.win.uiScale=100%", // Фиксирует масштабирование для Windows
-        "-Dprism.order=sw" // Использует программный рендеринг
+        "-Dglass.win.uiScale=100%",                          // Фиксирует масштабирование для Windows
+        "-Dprism.order=sw",                                  // Использует программный рендеринг
+        "-Dkotlin.io.paths.allowWindowsUnixSeparators=true", // Для работы с путями длиннее 260 символов требуется
     )
 }
 
