@@ -101,6 +101,24 @@ private fun startTcpServer() {
                                     }
                                     output.flush()
                                 }
+                                "DELETE_FILE" -> {
+                                    val filePath = input.readLine()
+                                    val file = File(filePath)
+                                    try {
+                                        if (file.exists() && file.isFile()) {
+                                            if (file.delete()) {
+                                                output.write("DELETE_SUCCESS\n")
+                                            } else {
+                                                output.write("DELETE_FAILED\n")
+                                            }
+                                        } else {
+                                            output.write("DELETE_INVALID\n")
+                                        }
+                                    } catch (e: SecurityException) {
+                                        output.write("DELETE_DENIED\n")
+                                    }
+                                    output.flush()
+                                }
                                 else -> {
                                     output.write("UNKNOWN_COMMAND\n")
                                     output.flush()

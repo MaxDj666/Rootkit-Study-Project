@@ -2,6 +2,7 @@ import javafx.application.Application
 import javafx.application.Platform
 import javafx.beans.property.SimpleStringProperty
 import javafx.collections.FXCollections
+import javafx.event.EventHandler
 import javafx.geometry.Insets
 import javafx.scene.Scene
 import javafx.scene.control.*
@@ -37,7 +38,7 @@ class ClientApp : Application() {
     private lateinit var fileSystemList: ListView<String>
     private lateinit var disconnectButton: Button
     private lateinit var currentPathLabel: Label
-    private lateinit var refreshButton: Button
+    private lateinit var deleteButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -128,14 +129,27 @@ class ClientApp : Application() {
             prefHeight = 400.0
         }
 
+        fileSystemList.apply {
+            onMouseClicked = EventHandler { event ->
+                if (event.clickCount == 2) {
+                    listFiles()
+                }
+            }
+        }
+
         val listDirsButton = Button("Все директории на C:\\").apply {
             style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
             setOnAction { listRootDirectories() }
         }
 
-        val filesButton = Button("Файлы директории").apply {
+        val refreshButton = Button("Обновить").apply {
             style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
-            setOnAction { listFiles() }
+            setOnAction { refreshFileSystemView() }
+        }
+
+        deleteButton = Button("Удалить файл").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px; -fx-text-fill: #c62828;"
+            setOnAction { deleteSelectedFile() }
         }
 
         currentPathLabel = Label(currentPath).apply {
@@ -143,7 +157,7 @@ class ClientApp : Application() {
         }
 
         val pathBox = HBox(10.0).apply {
-            children.addAll(currentPathLabel, filesButton)
+            children.addAll(currentPathLabel)
         }
 
         val controlBox = VBox(10.0).apply {
@@ -151,8 +165,10 @@ class ClientApp : Application() {
             children.addAll(
                 label,
                 listDirsButton,
+                refreshButton,
                 pathBox,
-                Separator()
+                Separator(),
+                deleteButton
             )
         }
 
@@ -170,7 +186,10 @@ class ClientApp : Application() {
 
     private fun listRootDirectories() {
         currentPath = "C:\\"
-        Platform.runLater { currentPathLabel.text = currentPath }
+        Platform.runLater {
+            currentPathLabel.text = currentPath
+            refreshFileSystemView()
+        }
         
         if (currentConnection == null || currentConnection!!.isClosed) {
             log("Нет активного подключения к серверу!")
@@ -221,10 +240,17 @@ class ClientApp : Application() {
                 val response = currentConnection!!.getInputStream().bufferedReader().readLine()
                 when {
                     response.startsWith("FILES:") -> {
-                        val files = response.substringAfter("FILES:").split("|").map {
-                            val parts = it.split(";")
-                            val name = parts[0]
-                            "${name}${if (name.endsWith("\\")) "" else " [${parts[1]} bytes]"}"
+                        val filesData = response.substringAfter("FILES:")
+                        val items = filesData.split("|").filter { it.isNotEmpty() } // Фильтрация пустых элементов
+                        val files = items.mapNotNull { item ->
+                            val parts = item.split(";")
+                            if (parts.size >= 2) {
+                                val name = parts[0]
+                                "${name}${if (name.endsWith("\\")) "" else " [${parts[1]} bytes]"}"
+                            } else {
+                                log("Некорректный формат элемента: $item")
+                                null // Игнорируем некорректные элементы
+                            }
                         }
                         Platform.runLater {
                             currentPath = newPath
@@ -239,6 +265,99 @@ class ClientApp : Application() {
                 }
             } catch (e: Exception) {
                 log("Ошибка при получении файлов: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun deleteSelectedFile() {
+        val selected = fileSystemList.selectionModel.selectedItem ?: run {
+            log("Файл не выбран!")
+            return
+        }
+
+        if (selected.endsWith("/")) {
+            log("Нельзя удалить директорию!")
+            return
+        }
+
+        val alert = Alert(Alert.AlertType.CONFIRMATION).apply {
+            title = "Подтверждение удаления"
+            headerText = "Вы уверены, что хотите удалить файл?"
+            contentText = "Файл: ${selected.substringBefore(" [")}"
+        }
+        if (alert.showAndWait().get() != ButtonType.OK) return
+
+        val fullPath = "$currentPath${selected.substringBefore(" [")}"
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("DELETE_FILE\n")
+                    write("$fullPath\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when (response) {
+                    "DELETE_SUCCESS" -> {
+                        log("Файл успешно удален: ${selected.substringBefore(" [")}")
+                        Platform.runLater { refreshFileSystemView() } // Обновляем список
+                    }
+                    "DELETE_FAILED" -> log("Ошибка удаления файла")
+                    "DELETE_INVALID" -> log("Файл не существует")
+                    "DELETE_DENIED" -> log("Нет прав на удаление")
+                }
+            } catch (e: Exception) {
+                log("Ошибка при удалении файла: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun refreshFileSystemView() {
+        if (currentConnection?.isClosed != false) {
+            log("Нет активного подключения!")
+            return
+        }
+
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("LIST_FILES\n")
+                    write("$currentPath\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when {
+                    response.startsWith("FILES:") -> {
+                        val filesData = response.substringAfter("FILES:")
+                        val items = filesData.split("|").filter { it.isNotEmpty() } // Фильтр пустых элементов
+                        val files = items.mapNotNull { item ->
+                            val parts = item.split(";")
+                            if (parts.size >= 2) { // Проверка корректности данных
+                                val name = parts[0].replace("/", "\\")
+                                "${name}${if (name.endsWith("\\")) "" else " [${parts[1]} bytes]"}"
+                            } else {
+                                log("Некорректный формат элемента: $item")
+                                null // Игнорируем битые элементы
+                            }
+                        }
+
+                        Platform.runLater {
+                            currentPathLabel.text = currentPath
+                            fileSystemList.items.setAll(files)
+                            log("Интерфейс обновлен. Элементов: ${files.size}")
+                        }
+                    }
+                    response.startsWith("ERROR:") -> {
+                        Platform.runLater {
+                            log("Ошибка обновления: ${response.substringAfter("ERROR:")}")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Platform.runLater {
+                    log("Ошибка при обновлении: ${e.message}")
+                }
             }
         }.start()
     }
