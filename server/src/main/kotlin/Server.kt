@@ -1,3 +1,5 @@
+import java.io.File
+import java.io.IOException
 import java.net.*
 import kotlin.concurrent.thread
 
@@ -70,12 +72,48 @@ private fun startTcpServer() {
             val clientSocket = serverSocket.accept()
             println("Подключен клиент: ${clientSocket.inetAddress}")
             thread {
-                clientSocket.use {
-                    it.getOutputStream().apply {
-                        write("Успешное подключение к серверу!\n".toByteArray())
-                        flush()
+                clientSocket.use { socket ->
+                    try {
+                        val input = socket.getInputStream().bufferedReader()
+                        val output = socket.getOutputStream().bufferedWriter()
+
+                        while (true) {
+                            val command = input.readLine() ?: break // Выход при разрыве
+                            when (command) {
+                                "LIST_DIRS_C" -> {
+                                    val dirs = File("C:/")
+                                        .listFiles { file: File -> file.isDirectory }
+                                        ?.map { "${it.name}\\" } // Добавляем "\" к именам директорий
+                                    output.write("DIRS:${dirs?.joinToString(";") ?: ""}\n")
+                                    output.flush()
+                                }
+                                "LIST_FILES" -> {
+                                    val path = input.readLine()
+                                    val dir = File(path)
+                                    if (dir.exists() && dir.isDirectory) {
+                                        val files = dir.listFiles()?.map {
+                                            // Заменяем "/" на "\\" для Windows
+                                            "${it.name}${if (it.isDirectory) "\\" else ""};${it.length()}"
+                                        } ?: emptyList()
+                                        output.write("FILES:${files.joinToString("|")}\n")
+                                    } else {
+                                        output.write("ERROR:Invalid directory\n")
+                                    }
+                                    output.flush()
+                                }
+                                else -> {
+                                    output.write("UNKNOWN_COMMAND\n")
+                                    output.flush()
+                                }
+                            }
+                        }
+                    } catch (e: IOException) {
+                        println("Ошибка при работе с клиентом: ${e.message}")
+                    } finally {
+                        socket.close()
                     }
                 }
+                println("Клиент отключен: ${clientSocket.inetAddress}")
             }
         }
     } catch (e: Exception) {

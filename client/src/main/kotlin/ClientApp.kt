@@ -6,6 +6,8 @@ import javafx.geometry.Insets
 import javafx.scene.Scene
 import javafx.scene.control.*
 import javafx.scene.control.cell.PropertyValueFactory
+import javafx.scene.layout.BorderPane
+import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.stage.Stage
@@ -26,9 +28,16 @@ class ClientApp : Application() {
     }
 
     private val servers = FXCollections.observableArrayList<ServerInfo>()
+    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+    private var currentConnection: Socket? = null
+    private var currentPath = "C:\\"
+    
     private lateinit var logArea: TextArea
     private lateinit var serversTable: TableView<ServerInfo>
-    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+    private lateinit var fileSystemList: ListView<String>
+    private lateinit var disconnectButton: Button
+    private lateinit var currentPathLabel: Label
+    private lateinit var refreshButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -80,15 +89,21 @@ class ClientApp : Application() {
             style = "-fx-font-size: 14px; -fx-pref-width: 150px;"
         }
 
-        logArea = TextArea().apply {
-            isEditable = false
-            promptText = "Лог событий..."
-            style = "-fx-font-family: 'Consolas'; -fx-font-size: 13px;"
+        disconnectButton = Button("Отключиться").apply {
+            setOnAction { disconnectFromServer() }
+            style = "-fx-font-size: 14px; -fx-pref-width: 150px;"
+            isDisable = true
         }
 
         val buttonBox = VBox(10.0).apply {
             padding = Insets(10.0)
-            children.addAll(scanButton, connectButton)
+            children.addAll(scanButton, connectButton, disconnectButton)
+        }
+
+        logArea = TextArea().apply {
+            isEditable = false
+            promptText = "Лог событий..."
+            style = "-fx-font-family: 'Consolas'; -fx-font-size: 13px;"
         }
 
         val content = VBox(15.0).apply {
@@ -105,19 +120,127 @@ class ClientApp : Application() {
     }
 
     private fun createManagementTab(): Tab {
-        val label = Label("Управление подключенной станцией").apply {
-            style = "-fx-font-size: 16px; -fx-padding: 20px;"
+        val label = Label("Управление файловой системой").apply {
+            style = "-fx-font-size: 16px;"
         }
 
-        val content = VBox().apply {
-            padding = Insets(20.0)
-            children.add(label)
+        fileSystemList = ListView<String>().apply {
+            prefHeight = 400.0
+        }
+
+        val listDirsButton = Button("Все директории на C:\\").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
+            setOnAction { listRootDirectories() }
+        }
+
+        val filesButton = Button("Файлы директории").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
+            setOnAction { listFiles() }
+        }
+
+        currentPathLabel = Label(currentPath).apply {
+            style = "-fx-font-size: 14px; -fx-text-fill: #333;"
+        }
+
+        val pathBox = HBox(10.0).apply {
+            children.addAll(currentPathLabel, filesButton)
+        }
+
+        val controlBox = VBox(10.0).apply {
+            padding = Insets(10.0)
+            children.addAll(
+                label,
+                listDirsButton,
+                pathBox,
+                Separator()
+            )
+        }
+
+        val layout = BorderPane().apply {
+            top = controlBox
+            center = fileSystemList
+            padding = Insets(15.0)
         }
 
         return Tab("Управление").apply {
-            this.content = content
+            content = layout
             isClosable = false
         }
+    }
+
+    private fun listRootDirectories() {
+        currentPath = "C:\\"
+        Platform.runLater { currentPathLabel.text = currentPath }
+        
+        if (currentConnection == null || currentConnection!!.isClosed) {
+            log("Нет активного подключения к серверу!")
+            return
+        }
+
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("LIST_DIRS_C\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                if (response.startsWith("DIRS:")) {
+                    val dirs = response.substringAfter("DIRS:").split(";")
+                    Platform.runLater {
+                        fileSystemList.items.setAll(dirs)
+                        log("Получено директорий: ${dirs.size}")
+                    }
+                }
+            } catch (e: Exception) {
+                log("Ошибка при получении директорий: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun listFiles() {
+        val selected = fileSystemList.selectionModel.selectedItem ?: run {
+            log("Директория не выбрана!")
+            return
+        }
+
+        if (!selected.endsWith("\\")) { // Проверяем на "\\"
+            log("Выбран файл, а не директория")
+            return
+        }
+
+        val newPath = "$currentPath${selected.dropLast(1)}\\".replace("/", "\\")
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("LIST_FILES\n")
+                    write("$newPath\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when {
+                    response.startsWith("FILES:") -> {
+                        val files = response.substringAfter("FILES:").split("|").map {
+                            val parts = it.split(";")
+                            val name = parts[0]
+                            "${name}${if (name.endsWith("\\")) "" else " [${parts[1]} bytes]"}"
+                        }
+                        Platform.runLater {
+                            currentPath = newPath
+                            currentPathLabel.text = currentPath
+                            fileSystemList.items.setAll(files)
+                            log("Загружено элементов: ${files.size}")
+                        }
+                    }
+                    response.startsWith("ERROR:") -> {
+                        log("Ошибка: ${response.substringAfter("ERROR:")}")
+                    }
+                }
+            } catch (e: Exception) {
+                log("Ошибка при получении файлов: ${e.message}")
+            }
+        }.start()
     }
 
     private fun scanServers() {
@@ -176,6 +299,24 @@ class ClientApp : Application() {
         }.start()
     }
 
+    private fun disconnectFromServer() {
+        Thread {
+            try {
+                currentConnection?.use {
+                    it.close()
+                    Platform.runLater {
+                        disconnectButton.isDisable = true
+                        log("Соединение с сервером разорвано")
+                    }
+                }
+            } catch (e: Exception) {
+                log("Ошибка при отключении: ${e.message}")
+            } finally {
+                currentConnection = null
+            }
+        }.start()
+    }
+
     private fun connectToServer() {
         val selected = serversTable.selectionModel.selectedItem ?: run {
             log("Сервер не выбран!")
@@ -183,12 +324,20 @@ class ClientApp : Application() {
         }
         Thread {
             try {
-                Socket(selected.address, selected.port).use { socket ->
-                    val response = socket.getInputStream().bufferedReader().readLine()
-                    log("Ответ сервера '${selected.name}': $response")
+                currentConnection?.close()
+                currentConnection = Socket(selected.address, selected.port).apply {
+                    soTimeout = 5000
+                }
+                Platform.runLater {
+                    disconnectButton.isDisable = false
+                    log("Успешно подключено к ${selected.name}")
                 }
             } catch (e: Exception) {
-                log("Ошибка подключения к '${selected.name}': ${e.message}")
+                log("Ошибка подключения: ${e.message}")
+                currentConnection = null
+                Platform.runLater {
+                    disconnectButton.isDisable = true
+                }
             }
         }.start()
     }
