@@ -38,7 +38,8 @@ private fun startDiscoveryServer() {
 
             val message = String(packet.data, 0, packet.length)
             if (message.trim() == "DISCOVER") {
-                val response = "SERVER_RESPONSE:12345"
+                val serverName = InetAddress.getLocalHost().hostName
+                val response = "SERVER_RESPONSE:$serverName:12345"
                 val sendData = response.toByteArray()
                 val responsePacket = DatagramPacket(
                     sendData,
@@ -47,7 +48,7 @@ private fun startDiscoveryServer() {
                     packet.port
                 )
                 socket.send(responsePacket)
-                println("Отправлен ответ клиенту: ${packet.address}")
+                println("Отправлен ответ клиенту: ${packet.address} (Имя: $serverName)")
             }
         }
     } catch (e: Exception) {
