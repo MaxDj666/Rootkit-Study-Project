@@ -19,6 +19,7 @@ fun main() {
     // Закрытие сокетов при выходе
     SocketHolder.discoverySocket?.close()
     SocketHolder.tcpServerSocket?.close()
+    println("Сервер остановлен.")
 }
 
 private fun startDiscoveryServer() {
@@ -52,6 +53,12 @@ private fun startDiscoveryServer() {
                 socket.send(responsePacket)
                 println("Отправлен ответ клиенту: ${packet.address} (Имя: $serverName)")
             }
+        }
+    } catch (e: SocketException) {
+        if (e.message == "Socket closed") {
+            println("UDP сервер корректно остановлен")
+        } else {
+            println("Ошибка в UDP сервере: ${e.message}")
         }
     } catch (e: Exception) {
         println("Ошибка в UDP сервере: ${e.message}")
@@ -266,6 +273,12 @@ private fun startTcpServer() {
                 }
                 println("Клиент отключен: ${clientSocket.inetAddress}")
             }
+        }
+    } catch (e: SocketException) {
+        if (e.message == "Socket closed") {
+            println("TCP сервер корректно остановлен")
+        } else {
+            println("Ошибка в TCP сервере: ${e.message}")
         }
     } catch (e: Exception) {
         println("Ошибка в TCP сервере: ${e.message}")
