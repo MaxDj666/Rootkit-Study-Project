@@ -13,6 +13,7 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.stage.FileChooser
 import javafx.stage.Stage
+import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
@@ -47,6 +48,7 @@ class ClientApp : Application() {
     private lateinit var renameButton: Button
     private lateinit var copyButton: Button
     private lateinit var uploadButton: Button
+    private lateinit var backButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -175,12 +177,25 @@ class ClientApp : Application() {
             setOnAction { uploadFileToServer() }
         }
 
+        backButton = Button("←").apply {
+            style = """
+                -fx-font-size: 14px;
+                -fx-pref-width: 40px;
+                -fx-background-radius: 5px;
+                -fx-font-weight: bold;
+            """.trimIndent()
+            setOnAction { navigateUp() }
+        }
+
         currentPathLabel = Label(currentPath).apply {
             style = "-fx-font-size: 14px; -fx-text-fill: #333;"
         }
 
-        val pathBox = HBox(10.0).apply {
-            children.addAll(currentPathLabel)
+        val pathBox = HBox(5.0).apply {
+            children.addAll(
+                backButton,
+                currentPathLabel
+            )
         }
 
         val controlBox = VBox(10.0).apply {
@@ -495,7 +510,7 @@ class ClientApp : Application() {
                             endResponse.startsWith("FILE_RECEIVED:") -> {
                                 val size = endResponse.substringAfter(":").toLong()
                                 log("Файл успешно загружен ($size байт)")
-                                Platform.runLater { refreshFileSystemView() }
+                                Platform.runLater { refreshFileSystemView() } // Обновляем список
                             }
                             endResponse.startsWith("ERROR:") -> {
                                 log("Ошибка на сервере: ${endResponse.substringAfter("ERROR:")}")
@@ -511,6 +526,33 @@ class ClientApp : Application() {
                 log("Ошибка при загрузке файла: ${e.message}")
             }
         }.start()
+    }
+
+    private fun navigateUp() {
+        try {
+            val currentDir = File(currentPath)
+            val canonicalDir = currentDir.canonicalFile
+
+            // Проверка корневой директории
+            if (canonicalDir in File.listRoots()) {
+                log("Вы уже в корневой директории")
+                return
+            }
+
+            val parentDir = canonicalDir.parentFile ?: run {
+                log("Ошибка навигации: родительский каталог не существует")
+                return
+            }
+
+            // Обновляем текущий путь
+            currentPath = parentDir.absolutePath + File.separator
+            currentPathLabel.text = currentPath
+            
+            refreshFileSystemView() // Обновляем список
+
+        } catch (e: IOException) {
+            log("Ошибка обработки пути: ${e.message}")
+        }
     }
 
     private fun refreshFileSystemView() {
