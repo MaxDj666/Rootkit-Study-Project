@@ -293,6 +293,22 @@ private fun startTcpServer() {
                                     }
                                     output.flush()
                                 }
+                                "SHOW_MESSAGE" -> {
+                                    try {
+                                        val message = input.readLine()
+                                        val powerShellCommand = arrayOf(
+                                            "powershell",
+                                            "-command",
+                                            "Add-Type -AssemblyName PresentationFramework;" +
+                                                    "[System.Windows.MessageBox]::Show('$message', 'Сообщение от клиента')"
+                                        )
+                                        Runtime.getRuntime().exec(powerShellCommand)
+                                        output.write("MESSAGE_SHOWN\n")
+                                    } catch (e: Exception) {
+                                        output.write("ERROR:${e.message}\n")
+                                    }
+                                    output.flush()
+                                }
                                 else -> {
                                     output.write("UNKNOWN_COMMAND\n")
                                     output.flush()

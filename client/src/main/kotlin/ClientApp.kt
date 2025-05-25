@@ -57,6 +57,7 @@ class ClientApp : Application() {
     private lateinit var searchField: TextField
     private lateinit var progressBar: ProgressBar
     private lateinit var statusBar: Label
+    private lateinit var messageField: TextField
 
     private lateinit var disconnectButton: Button
     private lateinit var deleteButton: Button
@@ -68,6 +69,7 @@ class ClientApp : Application() {
     private lateinit var searchButton: Button
     private lateinit var startButton: Button
     private lateinit var blockButton: Button
+    private lateinit var sendMessageButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент управления рабочими станциями"
@@ -357,10 +359,30 @@ class ClientApp : Application() {
             setOnAction { toggleKeyboard() }
         }
 
+        messageField = TextField().apply {
+            promptText = "Введите сообщение..."
+            style = "-fx-font-size: 14px; -fx-pref-width: 300px;"
+        }
+
+        sendMessageButton = Button("Отправить").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 100px;"
+            setOnAction { sendMessageToServer() }
+        }
+
+        val messageBox = HBox(10.0).apply {
+            padding = Insets(0.0, 0.0, 10.0, 0.0)
+            children.addAll(messageField, sendMessageButton)
+        }
+
         val layout = VBox(10.0).apply {
             padding = Insets(15.0)
             children.addAll(
-                blockButton
+                blockButton,
+                Separator(),
+                Label("Управление сообщениями").apply {
+                    style = "-fx-font-size: 14px;"
+                },
+                messageBox
             )
         }
 
@@ -927,6 +949,32 @@ class ClientApp : Application() {
                 }
             } catch (e: Exception) {
                 log("Ошибка управления клавиатурой/мышью: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun sendMessageToServer() {
+        val message = messageField.text.trim()
+        if (message.isEmpty()) {
+            log("Сообщение не может быть пустым!")
+            return
+        }
+
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("SHOW_MESSAGE\n")
+                    write("$message\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when {
+                    response == "MESSAGE_SHOWN" -> log("Сообщение успешно отправлено")
+                    response.startsWith("ERROR") -> log("Ошибка: ${response.substringAfter(":")}")
+                }
+            } catch (e: Exception) {
+                log("Ошибка отправки сообщения: ${e.message}")
             }
         }.start()
     }
