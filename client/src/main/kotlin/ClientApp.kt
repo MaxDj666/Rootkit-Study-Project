@@ -47,12 +47,14 @@ class ClientApp : Application() {
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     private var currentConnection: Socket? = null
     private var currentPath = "C:\\"
+    private var allProcesses = emptyList<ProcessInfo>()
     
     private lateinit var logArea: TextArea
     private lateinit var serversTable: TableView<ServerInfo>
     private lateinit var processesTable: TableView<ProcessInfo>
     private lateinit var fileSystemList: ListView<String>
     private lateinit var currentPathLabel: Label
+    private lateinit var searchField: TextField
 
     private lateinit var disconnectButton: Button
     private lateinit var deleteButton: Button
@@ -61,6 +63,7 @@ class ClientApp : Application() {
     private lateinit var uploadButton: Button
     private lateinit var backButton: Button
     private lateinit var killButton: Button
+    private lateinit var searchButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -276,11 +279,27 @@ class ClientApp : Application() {
             setOnAction { killSelectedProcess() }
         }
 
+        searchField = TextField().apply {
+            promptText = "Поиск по имени или PID"
+            style = "-fx-font-size: 14px; -fx-pref-width: 300px;"
+        }
+
+        searchButton = Button("Найти").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 100px;"
+            setOnAction { applyProcessFilter() }
+        }
+
+        val searchBox = HBox(10.0).apply {
+            padding = Insets(0.0, 0.0, 10.0, 0.0)
+            children.addAll(searchField, searchButton)
+        }
+
         val layout = VBox(10.0).apply {
             padding = Insets(15.0)
             children.addAll(
                 refreshButton,
                 killButton,
+                searchBox,
                 processesTable
             )
             VBox.setVgrow(processesTable, Priority.ALWAYS)
@@ -709,7 +728,9 @@ class ClientApp : Application() {
                                 )
                             }
                         Platform.runLater {
+                            allProcesses = processes // Сохраняем полный список
                             processesTable.items.setAll(processes)
+                            searchField.text = "" // Сбрасываем фильтр
                             log("Получено процессов: ${processes.size}")
                         }
                     }
@@ -762,6 +783,22 @@ class ClientApp : Application() {
                 log("Ошибка при прерывании процесса: ${e.message}")
             }
         }.start()
+    }
+
+    private fun applyProcessFilter() {
+        val query = searchField.text.trim().lowercase()
+        if (query.isEmpty()) {
+            processesTable.items.setAll(allProcesses)
+            return
+        }
+
+        val filtered = allProcesses.filter {
+            it.name.lowercase().contains(query) ||
+                    it.pid.lowercase().contains(query)
+        }
+
+        processesTable.items.setAll(filtered)
+        log("Найдено процессов: ${filtered.size}")
     }
 
     /*******************************************************************
