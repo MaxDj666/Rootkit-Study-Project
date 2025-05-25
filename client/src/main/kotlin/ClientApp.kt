@@ -67,6 +67,7 @@ class ClientApp : Application() {
     private lateinit var killButton: Button
     private lateinit var searchButton: Button
     private lateinit var startButton: Button
+    private lateinit var blockButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент управления рабочими станциями"
@@ -177,7 +178,8 @@ class ClientApp : Application() {
         val tabPane = TabPane().apply {
             tabs.addAll(
                 createFileManagementTab(),
-                createProcessManagementTab()
+                createProcessManagementTab(),
+                createHardwareTab(),
             )
         }
         return Tab("Управление").apply {
@@ -344,6 +346,25 @@ class ClientApp : Application() {
         }
 
         return Tab("Процессы").apply {
+            content = layout
+            isClosable = false
+        }
+    }
+
+    private fun createHardwareTab(): Tab {
+        blockButton = Button("Заблокировать клавиатуру и мышь").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 400px;"
+            setOnAction { toggleKeyboard() }
+        }
+
+        val layout = VBox(10.0).apply {
+            padding = Insets(15.0)
+            children.addAll(
+                blockButton
+            )
+        }
+
+        return Tab("Оборудование").apply {
             content = layout
             isClosable = false
         }
@@ -871,6 +892,41 @@ class ClientApp : Application() {
                 }
             } catch (e: Exception) {
                 log("Ошибка запуска процесса: ${e.message}")
+            }
+        }.start()
+    }
+
+    /*******************************************************************
+     START OF HARDWARE PROCESSING HERE
+     *******************************************************************/
+
+    private fun toggleKeyboard() {
+        if (currentConnection?.isClosed != false) {
+            log("Нет активного подключения!")
+            return
+        }
+
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("TOGGLE_MOUSE_KEYBOARD\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when {
+                    response == "MOUSE_KEYBOARD_BLOCKED" -> Platform.runLater {
+                        blockButton.text = "Разблокировать клавиатуру/мышь"
+                        log("Клавиатура/мышь заблокирована")
+                    }
+                    response == "MOUSE_KEYBOARD_UNBLOCKED" -> Platform.runLater {
+                        blockButton.text = "Заблокировать клавиатуру/мышь"
+                        log("Клавиатура/мышь разблокирована")
+                    }
+                    response.startsWith("ERROR") -> log("Ошибка: ${response.substringAfter("ERROR: ")}")
+                }
+            } catch (e: Exception) {
+                log("Ошибка управления клавиатурой/мышью: ${e.message}")
             }
         }.start()
     }

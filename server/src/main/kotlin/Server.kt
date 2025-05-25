@@ -1,12 +1,27 @@
+import com.sun.jna.Library
+import com.sun.jna.Native
 import java.io.*
 import java.net.*
 import java.nio.charset.Charset
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
+
+interface User32 : Library {
+    fun BlockInput(fBlock: Boolean): Boolean
+
+    companion object {
+        val INSTANCE: User32 by lazy {
+            Native.load("user32", User32::class.java)
+        }
+    }
+}
 
 object SocketHolder {
     var discoverySocket: DatagramSocket? = null
     var tcpServerSocket: ServerSocket? = null
 }
+
+private val isBlocked = AtomicBoolean(false)
 
 fun main() {
     // Запуск серверов
@@ -256,6 +271,25 @@ private fun startTcpServer() {
                                         output.write("PROCESS_STARTED:${process.pid()}\n")
                                     } catch (e: Exception) {
                                         output.write("ERROR:${e.message}\n")
+                                    }
+                                    output.flush()
+                                }
+                                "TOGGLE_MOUSE_KEYBOARD" -> {
+                                    try {
+                                        val newState = !isBlocked.get()
+                                        val success = User32.INSTANCE.BlockInput(newState)
+
+                                        if (success) {
+                                            isBlocked.set(newState)
+                                            output.write(
+                                                if (newState) "MOUSE_KEYBOARD_BLOCKED\n"
+                                                else "MOUSE_KEYBOARD_UNBLOCKED\n"
+                                            )
+                                        } else {
+                                            output.write("ERROR: Failed to toggle mouse/keyboard. Try running as Administrator.\n")
+                                        }
+                                    } catch (e: Exception) {
+                                        output.write("ERROR: ${e.message}\n")
                                     }
                                     output.flush()
                                 }

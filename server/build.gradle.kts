@@ -5,6 +5,7 @@ plugins {
 
 dependencies {
     implementation(kotlin("stdlib"))
+    implementation("net.java.dev.jna:jna:5.13.0")
 }
 
 application {
