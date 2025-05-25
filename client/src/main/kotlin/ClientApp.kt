@@ -60,6 +60,7 @@ class ClientApp : Application() {
     private lateinit var copyButton: Button
     private lateinit var uploadButton: Button
     private lateinit var backButton: Button
+    private lateinit var killButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -270,9 +271,18 @@ class ClientApp : Application() {
             setOnAction { refreshProcesses() }
         }
 
+        killButton = Button("Прервать процесс").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px; -fx-text-fill: #c62828;"
+            setOnAction { killSelectedProcess() }
+        }
+
         val layout = VBox(10.0).apply {
             padding = Insets(15.0)
-            children.addAll(refreshButton, processesTable)
+            children.addAll(
+                refreshButton,
+                killButton,
+                processesTable
+            )
             VBox.setVgrow(processesTable, Priority.ALWAYS)
         }
 
@@ -709,6 +719,47 @@ class ClientApp : Application() {
                 }
             } catch (e: Exception) {
                 log("Ошибка при получении процессов: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun killSelectedProcess() {
+        val selected = processesTable.selectionModel.selectedItem ?: run {
+            log("Процесс не выбран!")
+            return
+        }
+
+        val alert = Alert(Alert.AlertType.CONFIRMATION).apply {
+            title = "Подтверждение прерывания"
+            headerText = "Вы уверены, что хотите прервать процесс?"
+            contentText = "PID: ${selected.pid}\nИмя: ${selected.name}"
+        }
+        if (alert.showAndWait().get() != ButtonType.OK) return
+
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("KILL_PROCESS\n")
+                    write("${selected.pid}\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when {
+                    response == "PROCESS_KILLED" -> {
+                        log("Процесс успешно прерван: ${selected.name}")
+                        refreshProcesses()
+                    }
+                    response.startsWith("KILL_FAILED") -> {
+                        val code = response.substringAfter(":")
+                        log("Ошибка прерывания (код $code)")
+                    }
+                    response.startsWith("ERROR") -> {
+                        log("Ошибка: ${response.substringAfter(":")}")
+                    }
+                }
+            } catch (e: Exception) {
+                log("Ошибка при прерывании процесса: ${e.message}")
             }
         }.start()
     }

@@ -226,6 +226,21 @@ private fun startTcpServer() {
                                     }
                                     output.flush()
                                 }
+                                "KILL_PROCESS" -> {
+                                    try {
+                                        val pid = input.readLine()
+                                        val process = Runtime.getRuntime().exec("taskkill /PID $pid /F")
+                                        val exitCode = process.waitFor()
+                                        if (exitCode == 0) {
+                                            output.write("PROCESS_KILLED\n")
+                                        } else {
+                                            output.write("KILL_FAILED:$exitCode\n")
+                                        }
+                                    } catch (e: Exception) {
+                                        output.write("ERROR:${e.message}\n")
+                                    }
+                                    output.flush()
+                                }
                                 else -> {
                                     output.write("UNKNOWN_COMMAND\n")
                                     output.flush()
