@@ -241,6 +241,17 @@ private fun startTcpServer() {
                                     }
                                     output.flush()
                                 }
+                                "START_PROCESS" -> {
+                                    try {
+                                        val commandInput = input.readLine()
+                                        val process = Runtime.getRuntime().exec(commandInput)
+                                        // Не ждём завершения процесса!
+                                        output.write("PROCESS_STARTED:${process.pid()}\n")
+                                    } catch (e: Exception) {
+                                        output.write("ERROR:${e.message}\n")
+                                    }
+                                    output.flush()
+                                }
                                 else -> {
                                     output.write("UNKNOWN_COMMAND\n")
                                     output.flush()

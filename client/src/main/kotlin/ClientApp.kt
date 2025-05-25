@@ -64,6 +64,7 @@ class ClientApp : Application() {
     private lateinit var backButton: Button
     private lateinit var killButton: Button
     private lateinit var searchButton: Button
+    private lateinit var startButton: Button
 
     override fun start(primaryStage: Stage) {
         primaryStage.title = "Клиент для управления серверами"
@@ -289,6 +290,15 @@ class ClientApp : Application() {
             setOnAction { applyProcessFilter() }
         }
 
+        startButton = Button("Запустить процесс").apply {
+            style = """
+                -fx-font-size: 14px; 
+                -fx-pref-width: 200px;
+                -fx-text-fill: #2e7d32;
+            """.trimIndent()
+            setOnAction { startNewProcess() }
+        }
+
         val searchBox = HBox(10.0).apply {
             padding = Insets(0.0, 0.0, 10.0, 0.0)
             children.addAll(searchField, searchButton)
@@ -299,6 +309,7 @@ class ClientApp : Application() {
             children.addAll(
                 refreshButton,
                 killButton,
+                startButton,
                 searchBox,
                 processesTable
             )
@@ -799,6 +810,42 @@ class ClientApp : Application() {
 
         processesTable.items.setAll(filtered)
         log("Найдено процессов: ${filtered.size}")
+    }
+
+    private fun startNewProcess() {
+        val dialog = TextInputDialog("notepad.exe").apply {
+            title = "Запуск процесса"
+            headerText = "Введите имя процесса и аргументы:"
+            contentText = "Примеры:\nnotepad.exe\ncalc.exe"
+        }
+
+        val command = dialog.showAndWait().orElse(null) ?: return
+
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("START_PROCESS\n")
+                    write("$command\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when {
+                    response.startsWith("PROCESS_STARTED") -> {
+                        val pid = response.substringAfter(":")
+                        log("Процесс запущен (PID: $pid)")
+                        refreshProcesses()
+                    }
+                    response.startsWith("START_FAILED") -> {
+                        val code = response.substringAfter(":")
+                        log("Ошибка запуска (код $code)")
+                    }
+                    else -> log("Ошибка: ${response.substringAfter(":")}")
+                }
+            } catch (e: Exception) {
+                log("Ошибка запуска процесса: ${e.message}")
+            }
+        }.start()
     }
 
     /*******************************************************************
