@@ -33,6 +33,16 @@ class ClientApp : Application() {
         val portProperty = SimpleStringProperty(port.toString())
     }
 
+    data class ProcessInfo(
+        val pid: String,
+        val name: String,
+        val memory: String
+    ) {
+        val pidProperty = SimpleStringProperty(pid)
+        val nameProperty = SimpleStringProperty(name)
+        val memoryProperty = SimpleStringProperty(memory)
+    }
+
     private val servers = FXCollections.observableArrayList<ServerInfo>()
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     private var currentConnection: Socket? = null
@@ -40,6 +50,7 @@ class ClientApp : Application() {
     
     private lateinit var logArea: TextArea
     private lateinit var serversTable: TableView<ServerInfo>
+    private lateinit var processesTable: TableView<ProcessInfo>
     private lateinit var fileSystemList: ListView<String>
     private lateinit var currentPathLabel: Label
 
@@ -57,7 +68,7 @@ class ClientApp : Application() {
         val tabPane = TabPane().apply {
             tabs.addAll(
                 createDiscoveryTab(),
-                createManagementTab()
+                createManagementTab(),
             )
         }
 
@@ -131,10 +142,19 @@ class ClientApp : Application() {
     }
 
     private fun createManagementTab(): Tab {
-        val label = Label("Управление файловой системой").apply {
-            style = "-fx-font-size: 16px;"
+        val tabPane = TabPane().apply {
+            tabs.addAll(
+                createFileManagementTab(),
+                createProcessManagementTab()
+            )
         }
+        return Tab("Управление").apply {
+            content = tabPane
+            isClosable = false
+        }
+    }
 
+    private fun createFileManagementTab(): Tab {
         fileSystemList = ListView<String>().apply {
             prefHeight = 400.0
         }
@@ -201,7 +221,6 @@ class ClientApp : Application() {
         val controlBox = VBox(10.0).apply {
             padding = Insets(10.0)
             children.addAll(
-                label,
                 listDirsButton,
                 refreshButton,
                 pathBox,
@@ -219,11 +238,53 @@ class ClientApp : Application() {
             padding = Insets(15.0)
         }
 
-        return Tab("Управление").apply {
+        return Tab("Файловая система").apply {
             content = layout
             isClosable = false
         }
     }
+
+    private fun createProcessManagementTab(): Tab {
+        processesTable = TableView<ProcessInfo>().apply {
+            columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN
+            prefHeight = 400.0
+
+            columns.addAll(
+                TableColumn<ProcessInfo, String>("PID").apply {
+                    cellValueFactory = PropertyValueFactory("pid")
+                    prefWidth = 100.0
+                },
+                TableColumn<ProcessInfo, String>("Имя процесса").apply {
+                    cellValueFactory = PropertyValueFactory("name")
+                    prefWidth = 300.0
+                },
+                TableColumn<ProcessInfo, String>("Память").apply {
+                    cellValueFactory = PropertyValueFactory("memory")
+                    prefWidth = 150.0
+                }
+            )
+        }
+
+        val refreshButton = Button("Обновить список процессов").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
+            setOnAction { refreshProcesses() }
+        }
+
+        val layout = VBox(10.0).apply {
+            padding = Insets(15.0)
+            children.addAll(refreshButton, processesTable)
+            VBox.setVgrow(processesTable, Priority.ALWAYS)
+        }
+
+        return Tab("Процессы").apply {
+            content = layout
+            isClosable = false
+        }
+    }
+
+    /*******************************************************************
+     START OF FILE PROCESSING HERE
+     *******************************************************************/
 
     private fun listRootDirectories() {
         currentPath = "C:\\"
@@ -605,6 +666,57 @@ class ClientApp : Application() {
         }.start()
     }
 
+    private fun convertToServerPath(windowsPath: String): String {
+        val normalized = windowsPath
+            .replace("/", "\\")
+            .let { if (it.length > 260) "\\\\?\\$it" else it }
+        return normalized
+    }
+
+    /*******************************************************************
+     START OF PROCESS PROCESSING HERE
+     *******************************************************************/
+
+    private fun refreshProcesses() {
+        Thread {
+            try {
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("LIST_PROCESSES\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when {
+                    response.startsWith("PROCESSES:") -> {
+                        val processes = response.substringAfter("PROCESSES:")
+                            .split(";")
+                            .map {
+                                val parts = it.split("|")
+                                ProcessInfo(
+                                    pid = parts.getOrElse(0) { "N/A" },
+                                    name = parts.getOrElse(1) { "Unknown" },
+                                    memory = parts.getOrElse(2) { "0 K" }
+                                )
+                            }
+                        Platform.runLater {
+                            processesTable.items.setAll(processes)
+                            log("Получено процессов: ${processes.size}")
+                        }
+                    }
+                    response.startsWith("ERROR:") -> {
+                        log("Ошибка: ${response.substringAfter("ERROR:")}")
+                    }
+                }
+            } catch (e: Exception) {
+                log("Ошибка при получении процессов: ${e.message}")
+            }
+        }.start()
+    }
+
+    /*******************************************************************
+     START OF SCAN PROCESSING HERE
+     *******************************************************************/
+
     private fun scanServers() {
         log("Сканирование начато...")
         Thread {
@@ -661,24 +773,6 @@ class ClientApp : Application() {
         }.start()
     }
 
-    private fun disconnectFromServer() {
-        Thread {
-            try {
-                currentConnection?.use {
-                    it.close()
-                    Platform.runLater {
-                        disconnectButton.isDisable = true
-                        log("Соединение с сервером разорвано")
-                    }
-                }
-            } catch (e: Exception) {
-                log("Ошибка при отключении: ${e.message}")
-            } finally {
-                currentConnection = null
-            }
-        }.start()
-    }
-
     private fun connectToServer() {
         val selected = serversTable.selectionModel.selectedItem ?: run {
             log("Сервер не выбран!")
@@ -704,11 +798,22 @@ class ClientApp : Application() {
         }.start()
     }
 
-    private fun convertToServerPath(windowsPath: String): String {
-        val normalized = windowsPath
-            .replace("/", "\\")
-            .let { if (it.length > 260) "\\\\?\\$it" else it }
-        return normalized
+    private fun disconnectFromServer() {
+        Thread {
+            try {
+                currentConnection?.use {
+                    it.close()
+                    Platform.runLater {
+                        disconnectButton.isDisable = true
+                        log("Соединение с сервером разорвано")
+                    }
+                }
+            } catch (e: Exception) {
+                log("Ошибка при отключении: ${e.message}")
+            } finally {
+                currentConnection = null
+            }
+        }.start()
     }
 
     private fun log(message: String) {

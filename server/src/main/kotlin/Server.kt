@@ -1,8 +1,6 @@
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.IOException
+import java.io.*
 import java.net.*
+import java.nio.charset.Charset
 import kotlin.concurrent.thread
 
 object SocketHolder {
@@ -202,6 +200,29 @@ private fun startTcpServer() {
                                         output.write("ERROR:Invalid file size\n")
                                     } catch (e: IOException) {
                                         output.write("ERROR:Failed to receive file: ${e.message}\n")
+                                    }
+                                    output.flush()
+                                }
+                                "LIST_PROCESSES" -> {
+                                    try {
+                                        val process = Runtime.getRuntime().exec("tasklist /fo csv /nh")
+                                        val reader = BufferedReader(InputStreamReader(process.inputStream, Charset.forName("CP866")))
+                                        val processes = mutableListOf<String>()
+
+                                        reader.useLines { lines ->
+                                            lines.filter { it.isNotBlank() }.forEach { line ->
+                                                val parts = line.split("\",\"")
+                                                if (parts.size >= 5) {
+                                                    val name = parts[0].trim('"') // Используем trim для удаления кавычек
+                                                    val pid = parts[1].trim('"')
+                                                    val memory = parts[4].trim('"')
+                                                    processes.add("$pid|$name|$memory")
+                                                }
+                                            }
+                                        }
+                                        output.write("PROCESSES:${processes.joinToString(";")}\n")
+                                    } catch (e: Exception) {
+                                        output.write("ERROR:${e.message}\n")
                                     }
                                     output.flush()
                                 }
