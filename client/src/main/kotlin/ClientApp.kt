@@ -55,6 +55,8 @@ class ClientApp : Application() {
     private lateinit var fileSystemList: ListView<String>
     private lateinit var currentPathLabel: Label
     private lateinit var searchField: TextField
+    private lateinit var progressBar: ProgressBar
+    private lateinit var statusBar: Label
 
     private lateinit var disconnectButton: Button
     private lateinit var deleteButton: Button
@@ -67,7 +69,7 @@ class ClientApp : Application() {
     private lateinit var startButton: Button
 
     override fun start(primaryStage: Stage) {
-        primaryStage.title = "Клиент для управления серверами"
+        primaryStage.title = "Клиент управления рабочими станциями"
 
         // Создаем вкладки
         val tabPane = TabPane().apply {
@@ -77,7 +79,23 @@ class ClientApp : Application() {
             )
         }
 
-        primaryStage.scene = Scene(tabPane, 1000.0, 700.0)
+        // Статус-бар с выравниванием по центру
+        statusBar = Label("Не подключено").apply {
+            padding = Insets(5.0)
+            style = """
+                -fx-background-color: #f0f0f0; 
+                -fx-font-size: 12px;
+                -fx-alignment: center;
+            """.trimIndent()
+            maxWidth = Double.MAX_VALUE
+        }
+
+        val mainLayout = BorderPane().apply {
+            center = tabPane
+            bottom = statusBar
+        }
+
+        primaryStage.scene = Scene(mainLayout, 1000.0, 700.0)
         primaryStage.minWidth = 800.0
         primaryStage.minHeight = 600.0
         primaryStage.show()
@@ -122,9 +140,18 @@ class ClientApp : Application() {
             isDisable = true
         }
 
+        progressBar = ProgressBar().apply {
+            isVisible = false
+            prefWidth = 200.0
+        }
+
+        val scanBox = HBox(10.0).apply {
+            children.addAll(scanButton, progressBar)
+        }
+
         val buttonBox = VBox(10.0).apply {
             padding = Insets(10.0)
-            children.addAll(scanButton, connectButton, disconnectButton)
+            children.addAll(scanBox, connectButton, disconnectButton)
         }
 
         logArea = TextArea().apply {
@@ -854,6 +881,9 @@ class ClientApp : Application() {
 
     private fun scanServers() {
         log("Сканирование начато...")
+        progressBar.isVisible = true
+        progressBar.progress = ProgressIndicator.INDETERMINATE_PROGRESS
+        
         Thread {
             try {
                 DatagramSocket().use { socket ->
@@ -904,6 +934,8 @@ class ClientApp : Application() {
                 log("Сканирование завершено")
             } catch (e: Exception) {
                 log("Ошибка при сканировании: ${e.message}")
+            } finally {
+                Platform.runLater { progressBar.isVisible = false }
             }
         }.start()
     }
@@ -913,6 +945,7 @@ class ClientApp : Application() {
             log("Сервер не выбран!")
             return
         }
+        
         Thread {
             try {
                 currentConnection?.close()
@@ -922,12 +955,14 @@ class ClientApp : Application() {
                 Platform.runLater {
                     disconnectButton.isDisable = false
                     log("Успешно подключено к ${selected.name}")
+                    statusBar.text = "Подключено к: ${selected.name} (${selected.address})"
                 }
             } catch (e: Exception) {
                 log("Ошибка подключения: ${e.message}")
                 currentConnection = null
                 Platform.runLater {
                     disconnectButton.isDisable = true
+                    statusBar.text = "Не подключено"
                 }
             }
         }.start()
@@ -941,6 +976,7 @@ class ClientApp : Application() {
                     Platform.runLater {
                         disconnectButton.isDisable = true
                         log("Соединение с сервером разорвано")
+                        statusBar.text = "Не подключено"
                     }
                 }
             } catch (e: Exception) {
