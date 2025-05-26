@@ -43,7 +43,7 @@ private fun startDiscoveryServer() {
         // Создаем сокет с возможностью повторного использования адреса
         val socket = DatagramSocket(null).apply {
             reuseAddress = true
-            bind(InetSocketAddress(Inet6Address.getByName("::"), discoveryPort))
+            bind(InetSocketAddress(discoveryPort))
             broadcast = true
         }
         SocketHolder.discoverySocket = socket
@@ -56,6 +56,7 @@ private fun startDiscoveryServer() {
 
             val message = String(packet.data, 0, packet.length)
             if (message.trim() == "DISCOVER") {
+                println("Получен запрос DISCOVER от ${packet.address}")
                 val serverName = InetAddress.getLocalHost().hostName
                 val response = "SERVER_RESPONSE:$serverName:12345"
                 val sendData = response.toByteArray()
@@ -334,3 +335,5 @@ private fun startTcpServer() {
         println("Ошибка в TCP сервере: ${e.message}")
     }
 }
+
+// Build .jar - ./gradlew :server:shadowJar

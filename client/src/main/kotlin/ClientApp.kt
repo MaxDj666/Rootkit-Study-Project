@@ -999,7 +999,7 @@ class ClientApp : Application() {
                     val packet = DatagramPacket(
                         request,
                         request.size,
-                        InetAddress.getByName("255.255.255.255"),
+                        InetAddress.getByName("192.168.56.255"), // 192.168.31.255 // Need to change!
                         54321
                     )
                     socket.send(packet)
@@ -1015,12 +1015,10 @@ class ClientApp : Application() {
                             if (message.startsWith("SERVER_RESPONSE")) {
                                 val parts = message.split(":")
                                 if (parts.size == 3) {
-                                    val serverName = parts[1]
-                                    val port = parts[2].toInt()
                                     val serverInfo = ServerInfo(
-                                        name = serverName,
-                                        address = responsePacket.address.hostAddress.toString(),
-                                        port = port
+                                        name = parts[1],
+                                        address = responsePacket.address.hostAddress, // Берем IP из пакета!
+                                        port = parts[2].toInt()
                                     )
                                     Platform.runLater {
                                         if (servers.none { it.address == serverInfo.address }) {
