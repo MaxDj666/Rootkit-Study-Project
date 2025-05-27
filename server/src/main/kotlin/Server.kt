@@ -336,4 +336,5 @@ private fun startTcpServer() {
     }
 }
 
-// Build .jar - ./gradlew :server:shadowJar
+// Build JAR-file - "./gradlew :server:shadowJar"
+// Start JAR-file - "java -jar server-all.jar"

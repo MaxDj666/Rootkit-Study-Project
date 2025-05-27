@@ -355,13 +355,13 @@ class ClientApp : Application() {
 
     private fun createHardwareTab(): Tab {
         blockButton = Button("Заблокировать клавиатуру и мышь").apply {
-            style = "-fx-font-size: 14px; -fx-pref-width: 400px;"
+            style = "-fx-font-size: 14px; -fx-pref-width: 300px;"
             setOnAction { toggleKeyboard() }
         }
 
         messageField = TextField().apply {
             promptText = "Введите сообщение..."
-            style = "-fx-font-size: 14px; -fx-pref-width: 300px;"
+            style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
         }
 
         sendMessageButton = Button("Отправить").apply {
@@ -377,6 +377,9 @@ class ClientApp : Application() {
         val layout = VBox(10.0).apply {
             padding = Insets(15.0)
             children.addAll(
+                Label("Управление периферией").apply {
+                    style = "-fx-font-size: 14px;"
+                },
                 blockButton,
                 Separator(),
                 Label("Управление сообщениями").apply {
@@ -397,15 +400,12 @@ class ClientApp : Application() {
      *******************************************************************/
 
     private fun listRootDirectories() {
+        if(!isConnected()) return
+        
         currentPath = "C:\\"
         Platform.runLater {
             currentPathLabel.text = currentPath
             refreshFileSystemView()
-        }
-        
-        if (currentConnection == null || currentConnection!!.isClosed) {
-            log("Нет активного подключения к серверу!")
-            return
         }
 
         Thread {
@@ -430,6 +430,8 @@ class ClientApp : Application() {
     }
 
     private fun listFiles() {
+        if (!isConnected()) return
+        
         val selected = fileSystemList.selectionModel.selectedItem ?: run {
             log("Директория не выбрана!")
             return
@@ -482,6 +484,8 @@ class ClientApp : Application() {
     }
 
     private fun deleteSelectedFile() {
+        if (!isConnected()) return
+        
         val selected = fileSystemList.selectionModel.selectedItem ?: run {
             log("Файл не выбран!")
             return
@@ -525,6 +529,8 @@ class ClientApp : Application() {
     }
 
     private fun renameSelected() {
+        if (!isConnected()) return
+        
         val selected = fileSystemList.selectionModel.selectedItem ?: run {
             log("Файл или директория не выбраны!")
             return
@@ -568,6 +574,8 @@ class ClientApp : Application() {
     }
 
     private fun copyFileFromServer() {
+        if (!isConnected()) return
+        
         val selected = fileSystemList.selectionModel.selectedItem ?: run {
             log("Файл не выбран!")
             return
@@ -638,6 +646,8 @@ class ClientApp : Application() {
     }
 
     private fun uploadFileToServer() {
+        if (!isConnected()) return
+        
         val fileChooser = FileChooser().apply {
             title = "Выберите файл для загрузки"
             extensionFilters.addAll(
@@ -700,6 +710,8 @@ class ClientApp : Application() {
     }
 
     private fun navigateUp() {
+        if (!isConnected()) return
+        
         try {
             val currentDir = File(currentPath)
             val canonicalDir = currentDir.canonicalFile
@@ -727,10 +739,7 @@ class ClientApp : Application() {
     }
 
     private fun refreshFileSystemView() {
-        if (currentConnection?.isClosed != false) {
-            log("Нет активного подключения!")
-            return
-        }
+        if (!isConnected()) return
 
         Thread {
             try {
@@ -788,6 +797,8 @@ class ClientApp : Application() {
      *******************************************************************/
 
     private fun refreshProcesses() {
+        if (!isConnected()) return
+        
         Thread {
             try {
                 currentConnection!!.getOutputStream().bufferedWriter().apply {
@@ -826,6 +837,8 @@ class ClientApp : Application() {
     }
 
     private fun killSelectedProcess() {
+        if (!isConnected()) return
+        
         val selected = processesTable.selectionModel.selectedItem ?: run {
             log("Процесс не выбран!")
             return
@@ -867,6 +880,8 @@ class ClientApp : Application() {
     }
 
     private fun applyProcessFilter() {
+        if (!isConnected()) return
+        
         val query = searchField.text.trim().lowercase()
         if (query.isEmpty()) {
             processesTable.items.setAll(allProcesses)
@@ -883,6 +898,8 @@ class ClientApp : Application() {
     }
 
     private fun startNewProcess() {
+        if (!isConnected()) return
+        
         val dialog = TextInputDialog("notepad.exe").apply {
             title = "Запуск процесса"
             headerText = "Введите имя процесса и аргументы:"
@@ -923,10 +940,7 @@ class ClientApp : Application() {
      *******************************************************************/
 
     private fun toggleKeyboard() {
-        if (currentConnection?.isClosed != false) {
-            log("Нет активного подключения!")
-            return
-        }
+        if (!isConnected()) return
 
         Thread {
             try {
@@ -954,6 +968,8 @@ class ClientApp : Application() {
     }
 
     private fun sendMessageToServer() {
+        if (!isConnected()) return
+        
         val message = messageField.text.trim()
         if (message.isEmpty()) {
             log("Сообщение не может быть пустым!")
@@ -990,6 +1006,17 @@ class ClientApp : Application() {
         
         Thread {
             try {
+                val localAddress = getLocalIPv4Address()
+                val networkInterface = NetworkInterface.getByInetAddress(localAddress)
+
+                val broadcastAddress = networkInterface.interfaceAddresses
+                    .first { it.address == localAddress }
+                    .broadcast ?: run {
+                    // Fallback для ручного расчета
+                    val octets = localAddress.hostAddress.split(".").map { it.toInt() }
+                    InetAddress.getByName("${octets[0]}.${octets[1]}.${octets[2]}.255")
+                }
+                
                 DatagramSocket().use { socket ->
                     socket.broadcast = true
                     socket.soTimeout = 5000
@@ -999,7 +1026,7 @@ class ClientApp : Application() {
                     val packet = DatagramPacket(
                         request,
                         request.size,
-                        InetAddress.getByName("192.168.56.255"), // 192.168.31.255 // Need to change!
+                        broadcastAddress,
                         54321
                     )
                     socket.send(packet)
@@ -1097,6 +1124,32 @@ class ClientApp : Application() {
             // Автоматическая прокрутка к новому сообщению
             logArea.positionCaret(logArea.length)
         }
+    }
+
+    // Функция для получения локального IPv4 адреса
+    private fun getLocalIPv4Address(): InetAddress {
+        val validPrefixes = listOf("192.168.", "10.0.") // Добавьте нужные префиксы
+        val interfaces = NetworkInterface.getNetworkInterfaces()
+
+        while (interfaces.hasMoreElements()) {
+            val networkInterface = interfaces.nextElement()
+            if (networkInterface.isLoopback || !networkInterface.isUp) continue
+
+            for (addr in networkInterface.inetAddresses) {
+                if (addr is Inet4Address && validPrefixes.any { addr.hostAddress.startsWith(it) }) {
+                    println("Выбран интерфейс: ${networkInterface.name}, IP: ${addr.hostAddress}")
+                    return addr
+                }
+            }
+        }
+        throw SocketException("No suitable IPv4 address found")
+    }
+    
+    private fun isConnected(): Boolean {
+        return if (currentConnection == null || currentConnection!!.isClosed) { 
+            log("Нет активного подключения к серверу!")
+            false 
+        } else true
     }
 
     companion object {
