@@ -69,6 +69,7 @@ class ClientApp : Application() {
     private lateinit var searchButton: Button
     private lateinit var startButton: Button
     private lateinit var blockButton: Button
+    private lateinit var monitorButton: Button
     private lateinit var sendMessageButton: Button
 
     override fun start(primaryStage: Stage) {
@@ -359,6 +360,11 @@ class ClientApp : Application() {
             setOnAction { toggleKeyboard() }
         }
 
+        monitorButton = Button("Выключить монитор").apply {
+            style = "-fx-font-size: 14px; -fx-pref-width: 300px;"
+            setOnAction { toggleMonitor() }
+        }
+
         messageField = TextField().apply {
             promptText = "Введите сообщение..."
             style = "-fx-font-size: 14px; -fx-pref-width: 200px;"
@@ -381,6 +387,7 @@ class ClientApp : Application() {
                     style = "-fx-font-size: 14px;"
                 },
                 blockButton,
+                monitorButton,
                 Separator(),
                 Label("Управление сообщениями").apply {
                     style = "-fx-font-size: 14px;"
@@ -963,6 +970,38 @@ class ClientApp : Application() {
                 }
             } catch (e: Exception) {
                 log("Ошибка управления клавиатурой/мышью: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun toggleMonitor() {
+        if (!isConnected()) return
+
+        val btn = monitorButton
+        Thread {
+            try {
+                val turnOff = btn.text == "Выключить монитор"
+
+                currentConnection!!.getOutputStream().bufferedWriter().apply {
+                    write("TOGGLE_MONITOR\n")
+                    write("$turnOff\n")
+                    flush()
+                }
+
+                val response = currentConnection!!.getInputStream().bufferedReader().readLine()
+                when {
+                    response.startsWith("MONITOR_OFF") -> Platform.runLater {
+                        btn.text = "Включить монитор"
+                        log("Монитор выключен")
+                    }
+                    response.startsWith("MONITOR_ON") -> Platform.runLater {
+                        btn.text = "Выключить монитор"
+                        log("Монитор включен")
+                    }
+                    response.startsWith("ERROR") -> log("Ошибка: ${response.substringAfter(":")}")
+                }
+            } catch (e: Exception) {
+                log("Ошибка управления монитором: ${e.message}")
             }
         }.start()
     }

@@ -8,11 +8,18 @@ import kotlin.concurrent.thread
 
 interface User32 : Library {
     fun BlockInput(fBlock: Boolean): Boolean
+    fun SendMessageW(hWnd: Int, msg: Int, wParam: Int, lParam: Int): Int
 
     companion object {
         val INSTANCE: User32 by lazy {
             Native.load("user32", User32::class.java)
         }
+
+        // Константы для управления монитором
+        const val WM_SYSCOMMAND: Int = 0x0112
+        const val SC_MONITORPOWER: Int = 0xF170
+        const val MONITOR_OFF: Int = 2
+        const val MONITOR_ON: Int = -1
     }
 }
 
@@ -289,6 +296,21 @@ private fun startTcpServer() {
                                         } else {
                                             output.write("ERROR: Failed to toggle mouse/keyboard. Try running as Administrator.\n")
                                         }
+                                    } catch (e: Exception) {
+                                        output.write("ERROR: ${e.message}\n")
+                                    }
+                                    output.flush()
+                                }
+                                "TOGGLE_MONITOR" -> {
+                                    try {
+                                        val turnOff = input.readLine().toBoolean()
+                                        User32.INSTANCE.SendMessageW(
+                                            0xFFFF, // HWND_BROADCAST
+                                            User32.WM_SYSCOMMAND,
+                                            User32.SC_MONITORPOWER,
+                                            if (turnOff) User32.MONITOR_OFF else User32.MONITOR_ON
+                                        )
+                                        output.write("MONITOR_${if (turnOff) "OFF" else "ON"}\n")
                                     } catch (e: Exception) {
                                         output.write("ERROR: ${e.message}\n")
                                     }
