@@ -305,10 +305,10 @@ private fun startTcpServer() {
                                     try {
                                         val turnOff = input.readLine().toBoolean()
                                         User32.INSTANCE.SendMessageW(
-                                            0xFFFF, // HWND_BROADCAST
-                                            User32.WM_SYSCOMMAND,
-                                            User32.SC_MONITORPOWER,
-                                            if (turnOff) User32.MONITOR_OFF else User32.MONITOR_ON
+                                            0xFFFF, // HWND_BROADCAST (все окна)
+                                            User32.WM_SYSCOMMAND, // Системная команда
+                                            User32.SC_MONITORPOWER, // Управление монитором
+                                            if (turnOff) User32.MONITOR_OFF else User32.MONITOR_ON // 2 = MONITOR_OFF, -1 = MONITOR_ON
                                         )
                                         output.write("MONITOR_${if (turnOff) "OFF" else "ON"}\n")
                                     } catch (e: Exception) {
@@ -316,7 +316,7 @@ private fun startTcpServer() {
                                     }
                                     output.flush()
                                 }
-                                "SHOW_MESSAGE" -> {
+                                "SHOW_MESSAGE" -> { // TODO: Очень упрощенная версия, необходима работа с видеобуфером
                                     try {
                                         val message = input.readLine()
                                         val powerShellCommand = arrayOf(

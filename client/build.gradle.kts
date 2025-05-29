@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm")
-    id("org.openjfx.javafxplugin") version "0.1.0"
     application
+    id("org.openjfx.javafxplugin") version "0.1.0"
 }
 
 dependencies {
@@ -14,7 +14,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("ClientAppKt")
+    mainClass.set("ClientApp")
     applicationDefaultJvmArgs = listOf(
         "-Dglass.win.uiScale=100%",                          // Фиксирует масштабирование для Windows
         "-Dprism.order=sw",                                  // Использует программный рендеринг

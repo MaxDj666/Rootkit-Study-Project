@@ -49,27 +49,28 @@ class ClientApp : Application() {
     private var currentPath = "C:\\"
     private var allProcesses = emptyList<ProcessInfo>()
     
-    private lateinit var logArea: TextArea
-    private lateinit var serversTable: TableView<ServerInfo>
-    private lateinit var processesTable: TableView<ProcessInfo>
-    private lateinit var fileSystemList: ListView<String>
-    private lateinit var currentPathLabel: Label
-    private lateinit var searchField: TextField
-    private lateinit var progressBar: ProgressBar
-    private lateinit var statusBar: Label
-    private lateinit var messageField: TextField
+    private lateinit var logArea:           TextArea
+    private lateinit var serversTable:      TableView<ServerInfo>
+    private lateinit var processesTable:    TableView<ProcessInfo>
+    private lateinit var fileSystemList:    ListView<String>
+    private lateinit var currentPathLabel:  Label
+    private lateinit var searchField:       TextField
+    private lateinit var progressBar:       ProgressBar
+    private lateinit var statusBar:         Label
+    private lateinit var messageField:      TextField
 
-    private lateinit var disconnectButton: Button
-    private lateinit var deleteButton: Button
-    private lateinit var renameButton: Button
-    private lateinit var copyButton: Button
-    private lateinit var uploadButton: Button
-    private lateinit var backButton: Button
-    private lateinit var killButton: Button
-    private lateinit var searchButton: Button
-    private lateinit var startButton: Button
-    private lateinit var blockButton: Button
-    private lateinit var monitorButton: Button
+    // Кнопки
+    private lateinit var disconnectButton:  Button
+    private lateinit var deleteButton:      Button
+    private lateinit var renameButton:      Button
+    private lateinit var copyButton:        Button
+    private lateinit var uploadButton:      Button
+    private lateinit var backButton:        Button
+    private lateinit var killButton:        Button
+    private lateinit var searchButton:      Button
+    private lateinit var startButton:       Button
+    private lateinit var blockButton:       Button
+    private lateinit var monitorButton:     Button
     private lateinit var sendMessageButton: Button
 
     override fun start(primaryStage: Stage) {
@@ -1155,19 +1156,9 @@ class ClientApp : Application() {
         }.start()
     }
 
-    private fun log(message: String) {
-        Platform.runLater {
-            val timestamp = LocalTime.now().format(timeFormatter)
-            logArea.appendText("[$timestamp] $message\n")
-
-            // Автоматическая прокрутка к новому сообщению
-            logArea.positionCaret(logArea.length)
-        }
-    }
-
     // Функция для получения локального IPv4 адреса
     private fun getLocalIPv4Address(): InetAddress {
-        val validPrefixes = listOf("192.168.", "10.0.") // Добавьте нужные префиксы
+        val validPrefixes = listOf("192.168.", "172.20.") // Добавьте нужные префиксы
         val interfaces = NetworkInterface.getNetworkInterfaces()
 
         while (interfaces.hasMoreElements()) {
@@ -1189,6 +1180,16 @@ class ClientApp : Application() {
             log("Нет активного подключения к серверу!")
             false 
         } else true
+    }
+
+    private fun log(message: String) {
+        Platform.runLater {
+            val timestamp = LocalTime.now().format(timeFormatter)
+            logArea.appendText("[$timestamp] $message\n")
+
+            // Автоматическая прокрутка к новому сообщению
+            logArea.positionCaret(logArea.length)
+        }
     }
 
     companion object {
