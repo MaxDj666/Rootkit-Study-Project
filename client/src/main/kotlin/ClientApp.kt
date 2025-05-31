@@ -1,5 +1,6 @@
 import javafx.application.Application
 import javafx.application.Platform
+import javafx.beans.property.SimpleStringProperty
 import javafx.collections.FXCollections
 import javafx.event.EventHandler
 import javafx.geometry.Insets
@@ -21,15 +22,15 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 class ClientApp : Application() {
-    // Модель данных для таблицы
+    // Модель данных для таблиц
     data class ServerInfo(
         val name: String,
         val address: String,
         val port: Int
     ) {
-//        val nameProperty = SimpleStringProperty(name)
-//        val addressProperty = SimpleStringProperty(address)
-//        val portProperty = SimpleStringProperty(port.toString())
+        val nameProperty = SimpleStringProperty(name)
+        val addressProperty = SimpleStringProperty(address)
+        val portProperty = SimpleStringProperty(port.toString())
     }
 
     data class ProcessInfo(
@@ -37,9 +38,9 @@ class ClientApp : Application() {
         val name: String,
         val memory: String
     ) {
-//        val pidProperty = SimpleStringProperty(pid)
-//        val nameProperty = SimpleStringProperty(name)
-//        val memoryProperty = SimpleStringProperty(memory)
+        val pidProperty = SimpleStringProperty(pid)
+        val nameProperty = SimpleStringProperty(name)
+        val memoryProperty = SimpleStringProperty(memory)
     }
 
     private val servers = FXCollections.observableArrayList<ServerInfo>()
