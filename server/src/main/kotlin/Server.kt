@@ -35,13 +35,13 @@ fun main() {
     thread { startDiscoveryServer() }
     thread { startTcpServer() }
 
-    println("Сервер запущен. Нажмите Enter для остановки.")
+    println("The server is running. Press Enter to stop.")
     readlnOrNull()
 
     // Закрытие сокетов при выходе
     SocketHolder.discoverySocket?.close()
     SocketHolder.tcpServerSocket?.close()
-    println("Сервер остановлен.")
+    println("The server has stopped.")
 }
 
 private fun startDiscoveryServer() {
@@ -54,7 +54,7 @@ private fun startDiscoveryServer() {
             broadcast = true
         }
         SocketHolder.discoverySocket = socket
-        println("UDP сервер запущен на порту $discoveryPort")
+        println("UDP server running on port $discoveryPort")
 
         while (true) {
             val buffer = ByteArray(1024)
@@ -63,7 +63,7 @@ private fun startDiscoveryServer() {
 
             val message = String(packet.data, 0, packet.length)
             if (message.trim() == "DISCOVER") {
-                println("Получен запрос DISCOVER от ${packet.address}")
+                println("Received DISCOVER request from ${packet.address}")
                 val serverName = InetAddress.getLocalHost().hostName
                 val response = "SERVER_RESPONSE:$serverName:12345"
                 val sendData = response.toByteArray()
@@ -74,17 +74,17 @@ private fun startDiscoveryServer() {
                     packet.port
                 )
                 socket.send(responsePacket)
-                println("Отправлен ответ клиенту: ${packet.address} (Имя: $serverName)")
+                println("Reply sent to client: ${packet.address} (Name: $serverName)")
             }
         }
     } catch (e: SocketException) {
         if (e.message == "Socket closed") {
-            println("UDP сервер корректно остановлен")
+            println("UDP server stopped correctly")
         } else {
-            println("Ошибка в UDP сервере: ${e.message}")
+            println("Error in UDP server: ${e.message}")
         }
     } catch (e: Exception) {
-        println("Ошибка в UDP сервере: ${e.message}")
+        println("Error in UDP server: ${e.message}")
     }
 }
 
@@ -96,11 +96,11 @@ private fun startTcpServer() {
             bind(InetSocketAddress(tcpPort))
         }
         SocketHolder.tcpServerSocket = serverSocket
-        println("TCP сервер запущен на порту $tcpPort")
+        println("TCP server running on port $tcpPort")
 
         while (true) {
             val clientSocket = serverSocket.accept()
-            println("Подключен клиент: ${clientSocket.inetAddress}")
+            println("Client connected: ${clientSocket.inetAddress}")
             thread {
                 clientSocket.use { socket ->
                     try {
@@ -339,24 +339,21 @@ private fun startTcpServer() {
                             }
                         }
                     } catch (e: IOException) {
-                        println("Ошибка при работе с клиентом: ${e.message}")
+                        println("Error while working with the client: ${e.message}")
                     } finally {
                         socket.close()
                     }
                 }
-                println("Клиент отключен: ${clientSocket.inetAddress}")
+                println("Client disconnected: ${clientSocket.inetAddress}")
             }
         }
     } catch (e: SocketException) {
         if (e.message == "Socket closed") {
-            println("TCP сервер корректно остановлен")
+            println("TCP server stopped correctly")
         } else {
-            println("Ошибка в TCP сервере: ${e.message}")
+            println("TCP server error: ${e.message}")
         }
     } catch (e: Exception) {
-        println("Ошибка в TCP сервере: ${e.message}")
+        println("TCP server error: ${e.message}")
     }
 }
-
-// Build JAR-file - "./gradlew :server:shadowJar"
-// Start JAR-file - "java -jar server-all.jar"

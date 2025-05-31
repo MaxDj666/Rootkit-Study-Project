@@ -1,6 +1,5 @@
 import javafx.application.Application
 import javafx.application.Platform
-import javafx.beans.property.SimpleStringProperty
 import javafx.collections.FXCollections
 import javafx.event.EventHandler
 import javafx.geometry.Insets
@@ -28,9 +27,9 @@ class ClientApp : Application() {
         val address: String,
         val port: Int
     ) {
-        val nameProperty = SimpleStringProperty(name)
-        val addressProperty = SimpleStringProperty(address)
-        val portProperty = SimpleStringProperty(port.toString())
+//        val nameProperty = SimpleStringProperty(name)
+//        val addressProperty = SimpleStringProperty(address)
+//        val portProperty = SimpleStringProperty(port.toString())
     }
 
     data class ProcessInfo(
@@ -38,9 +37,9 @@ class ClientApp : Application() {
         val name: String,
         val memory: String
     ) {
-        val pidProperty = SimpleStringProperty(pid)
-        val nameProperty = SimpleStringProperty(name)
-        val memoryProperty = SimpleStringProperty(memory)
+//        val pidProperty = SimpleStringProperty(pid)
+//        val nameProperty = SimpleStringProperty(name)
+//        val memoryProperty = SimpleStringProperty(memory)
     }
 
     private val servers = FXCollections.observableArrayList<ServerInfo>()
@@ -1167,7 +1166,7 @@ class ClientApp : Application() {
 
             for (addr in networkInterface.inetAddresses) {
                 if (addr is Inet4Address && validPrefixes.any { addr.hostAddress.startsWith(it) }) {
-                    println("Выбран интерфейс: ${networkInterface.name}, IP: ${addr.hostAddress}")
+                    // println("Выбран интерфейс: ${networkInterface.name}, IP: ${addr.hostAddress}") // Для дебага
                     return addr
                 }
             }
