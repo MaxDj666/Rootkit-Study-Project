@@ -1,8 +1,8 @@
 # Клиент-серверное приложение для удаленного управления рабочими станциями
 
-![Java](https://img.shields.io/badge/Java-21-blue)
-![Gradle](https://img.shields.io/badge/Gradle-8.4-green)
-![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Gradle](https://img.shields.io/badge/Gradle-8.5-green)
+![Platform](https://img.shields.io/badge/Platform-Windows-blue)
 
 Приложение предоставляет возможности удаленного управления Windows-компьютерами через сеть, включая управление файловой системой, процессами и периферийными устройствами.
 
@@ -36,6 +36,7 @@
    git clone [ваш-репозиторий]
 2. Соберите проект с помощью Gradle:
    ```bash
+   ./gradlew clean
    ./gradlew shadowJar
 
 ## Артефакты сборки:
@@ -73,8 +74,6 @@
 ⚠️ Приложение предназначено для использования в доверенных сетях.
 Рекомендуется:
  - Использовать в изолированной сети
- - Ограничить физический доступ к серверам
- - Регулярно обновлять Java-окружение
 
 ## Архитектура
 ![deepseek_mermaid_20250527_f15876](https://github.com/user-attachments/assets/d987156c-85f8-4cdf-9a6e-29b3cecbec56)
@@ -82,4 +81,6 @@
 Разработано в IntelliJ IDEA с использованием:
  - JavaFX 21
  - JNA 5.13.0
- - Gradle 8.4
+ - Gradle 8.5
+
+**Только для образовательных целей. Не используйте в незаконной деятельности!**
